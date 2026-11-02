@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>AI 콘텐츠 모니터링 판독 대시보드 (프로토타입)</title>
+<style>
+:root {
+  --bg: #0f1115; --panel: #171a21; --panel-2: #1e222b; --border: #2a2f3a;
+  --text: #e7e9ee; --text-dim: #9aa1b2; --accent: #5b8cff; --accent-2: #7c5cff;
+  --ok: #22c55e; --warn: #f59e0b; --danger: #ef4444; --radius: 12px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: "Pretendard","Noto Sans KR","Noto Sans JP",-apple-system,BlinkMacSystemFont,sans-serif;
+  background: linear-gradient(180deg,#0b0d12 0%,#0f1115 100%); color: var(--text); min-height: 100vh;
+}
+.topbar { display:flex; align-items:center; justify-content:space-between; padding:18px 28px; border-bottom:1px solid var(--border); background:rgba(15,17,21,0.85); position:sticky; top:0; z-index:10; backdrop-filter:blur(6px);}
+.topbar .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; }
+.brand .dot { width:10px; height:10px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent-2)); }
+.lang-toggle { display:flex; gap:6px; background:var(--panel-2); border:1px solid var(--border); border-radius:999px; padding:4px; }
+.lang-toggle button { border:none; background:transparent; color:var(--text-dim); padding:6px 14px; border-radius:999px; font-size:13px; cursor:pointer; transition:all .15s ease; }
+.lang-toggle button.active { background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:white; }
+.tabs { display:flex; gap:6px; max-width:1400px; margin:18px auto 0; padding:0 28px; }
+.tab-btn { background:var(--panel); border:1px solid var(--border); color:var(--text-dim); padding:9px 18px; border-radius:10px 10px 0 0; cursor:pointer; font-size:13.5px; border-bottom:none; }
+.tab-btn.active { background:var(--panel-2); color:var(--text); font-weight:600; border-color:var(--accent); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+.layout { display:grid; grid-template-columns:380px 1fr; gap:20px; padding:0 28px 60px; max-width:1400px; margin:0 auto; }
+@media (max-width:980px){ .layout{ grid-template-columns:1fr; } }
+.panel { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin-top: 0; }
+.layout-wrap { padding-top: 18px; }
+.panel h2 { font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim); margin:0 0 14px; }
+.dropzone { border:2px dashed var(--border); border-radius:var(--radius); padding:34px 16px; text-align:center; cursor:pointer; transition:all .15s ease; background:var(--panel-2); }
+.dropzone.dragover { border-color:var(--accent); background:rgba(91,140,255,0.08); }
+.dropzone .icon { font-size:30px; margin-bottom:8px; }
+.dropzone .main { font-size:14px; margin-bottom:4px; }
+.dropzone .sub { font-size:12px; color:var(--text-dim); }
+input[type="file"] { display:none; }
+.divider { display:flex; align-items:center; gap:10px; color:var(--text-dim); font-size:12px; margin:18px 0; }
+.divider::before,.divider::after { content:""; flex:1; height:1px; background:var(--border); }
+textarea.text-input { width:100%; min-height:130px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:10px 12px; font-size:13px; resize:vertical; font-family:inherit; }
+textarea.batch-input { min-height: 320px; }
+.field { margin-top:14px; }
+.field label { display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; }
+select,.btn { width:100%; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 10px; font-size:13px; }
+.btn.primary { margin-top:14px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); border:none; color:white; font-weight:600; cursor:pointer; padding:11px; }
+.btn.primary:hover { filter:brightness(1.08); }
+.btn.primary:disabled { opacity:.5; cursor:not-allowed; }
+.hint-box { margin-top:16px; font-size:12px; color:var(--text-dim); line-height:1.6; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+.results-empty { color:var(--text-dim); text-align:center; padding:60px 20px; font-size:14px; }
+.banner { display:flex; gap:10px; align-items:flex-start; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.35); color:#fbbf24; padding:10px 14px; border-radius:8px; font-size:12.5px; margin-bottom:16px; line-height:1.5; }
+.meta-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.chip { background:var(--panel-2); border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:12px; color:var(--text-dim); }
+.grid-2 { display:grid; grid-template-columns:1.3fr 1fr; gap:16px; margin-bottom:18px; }
+@media (max-width:760px){ .grid-2{ grid-template-columns:1fr; } }
+.card { background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:16px; }
+.card h3 { margin:0 0 10px; font-size:13px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.03em; }
+.card .summary-text { white-space:pre-line; font-size:13.5px; line-height:1.7; }
+.sanction-badge { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px; font-weight:700; font-size:15px; margin-bottom:10px; }
+.sanction-sub { font-size:12px; color:var(--text-dim); }
+.cat-counts { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.cat-chip { font-size:11.5px; padding:4px 10px; border-radius:999px; color:white; font-weight:600; }
+.transcript { background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:6px 4px; }
+.seg { display:flex; gap:12px; padding:10px 14px; border-bottom:1px solid var(--border); font-size:13.5px; line-height:1.7; }
+.seg:last-child { border-bottom:none; }
+.seg.risk { background:rgba(239,68,68,0.06); }
+.seg .ts { flex:0 0 52px; color:var(--text-dim); font-variant-numeric:tabular-nums; font-size:12px; padding-top:2px; }
+.seg .body { flex:1; }
+.flag { background:rgba(239,68,68,0.18); color:#fca5a5; border-bottom:2px solid var(--danger); padding:1px 2px; border-radius:3px; cursor:help; font-weight:600; }
+.seg-tags { margin-top:4px; display:flex; gap:6px; flex-wrap:wrap; }
+.seg-tag { font-size:10.5px; color:white; padding:2px 8px; border-radius:999px; }
+.legend { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 4px; font-size:11.5px; color:var(--text-dim); }
+.legend .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; }
+.loading { text-align:center; padding:60px 20px; color:var(--text-dim); }
+.spinner { width:28px; height:28px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; margin:0 auto 14px; animation:spin 0.8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* batch table */
+.batch-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;}
+.batch-stats { display:flex; gap:8px; flex-wrap:wrap; }
+table.batch-table { width:100%; border-collapse:collapse; font-size:13px; }
+table.batch-table th { text-align:left; color:var(--text-dim); font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; padding:8px 10px; border-bottom:1px solid var(--border); }
+table.batch-table td { padding:10px; border-bottom:1px solid var(--border); vertical-align:top; }
+table.batch-table tr:hover { background: rgba(255,255,255,0.02); }
+.row-toggle { cursor:pointer; color:var(--accent); font-size:12px; background:none; border:none; padding:0; }
+.detail-row td { background: var(--panel-2); }
+.preview-text { color: var(--text-dim); max-width: 360px; }
+.badge-mini { font-size:11px; padding:3px 8px; border-radius:999px; color:white; font-weight:600; display:inline-block; }
+.export-btn { background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:7px 14px; font-size:12.5px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><span id="titleText">AI 콘텐츠 모니터링 판독 대시보드 · 프로토타입</span></div>
+  <div class="lang-toggle">
+    <button id="btn-ko" class="active">한국어</button>
+    <button id="btn-ja">日本語</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tab-single-btn">단건 분석</button>
+  <button class="tab-btn" id="tab-batch-btn">배치 분석 (여러 건)</button>
+</div>
+
+<div class="layout-wrap">
+
+<!-- ============ TAB 1: 단건 분석 ============ -->
+<div class="tab-panel active" id="tab-single">
+<div class="layout">
+  <div class="panel">
+    <h2 id="uploadTitle">신고 콘텐츠 업로드</h2>
+    <div class="dropzone" id="dropzone">
+      <div class="icon">🎧</div>
+      <div class="main" id="dropMain">음성 파일을 드래그하거나 클릭해서 선택</div>
+      <div class="sub" id="dropSub">mp3 / wav · 신고건 전후 3분 클립 권장</div>
+      <input type="file" id="fileInput" accept=".mp3,.wav,audio/*" />
+    </div>
+    <div class="divider"><span id="dividerText">또는 텍스트로 로직 테스트</span></div>
+    <textarea class="text-input" id="textInput" placeholder="녹취 텍스트를 붙여넣고 위반탐지/제재판단 로직만 바로 테스트해볼 수 있습니다."></textarea>
+    <div class="field">
+      <label id="stageLabel">최근 7일 내 동일 계정 동일유형 위반 이력 (사내 시스템 조회값)</label>
+      <select id="offenseStage">
+        <option value="1차">없음 (1차 위반)</option>
+        <option value="2차">1회 있음 (2차 위반)</option>
+        <option value="3차">2회 이상 있음 (3차 위반)</option>
+      </select>
+    </div>
+    <button class="btn primary" id="analyzeTextBtn">텍스트로 분석하기</button>
+    <div class="hint-box" id="hintBox"></div>
+  </div>
+
+  <div class="panel" id="resultsPanel">
+    <h2 id="resultTitle">판독 결과</h2>
+    <div class="results-empty" id="emptyState">파일을 업로드하거나 텍스트를 분석하면 여기에 결과가 표시됩니다.</div>
+    <div id="resultsContent" style="display:none;"></div>
+  </div>
+</div>
+</div>
+
+<!-- ============ TAB 2: 배치 분석 ============ -->
+<div class="tab-panel" id="tab-batch">
+<div class="layout" style="grid-template-columns: 1fr;">
+  <div class="panel">
+    <h2 id="batchInputTitle">신고건 녹취 텍스트 여러 건 붙여넣기</h2>
+    <div class="hint-box" id="batchHint" style="margin-top:0; margin-bottom:14px;"></div>
+    <textarea class="text-input batch-input" id="batchInput" placeholder="예시)
+안녕하세요 방송 시작합니다. 오늘도 재밌게 놀아요.
+---
+야 너 진짜 미친놈이네 닥쳐 좀. 죄송해요 감정이 격해졌네요.
+---
+토토 사이트 링크 공유해주세요 괜찮은거 있으면.
+"></textarea>
+    <div style="display:flex; gap:12px; margin-top:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="flex:1; min-width:200px;">
+        <label style="display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px;" id="batchStageLabel">기본 위반 차수 (전체 적용, 개별 조정 가능)</label>
+        <select id="batchOffenseStage">
+          <option value="1차">1차 위반</option>
+          <option value="2차">2차 위반</option>
+          <option value="3차">3차 위반</option>
+        </select>
+      </div>
+      <button class="btn primary" id="analyzeBatchBtn" style="margin-top:0; flex:0 0 220px;">전체 분석 실행</button>
+    </div>
+  </div>
+
+  <div class="panel" id="batchResultsPanel" style="display:none;">
+    <h2 id="batchResultTitle">배치 판독 결과</h2>
+    <div class="batch-toolbar">
+      <div class="batch-stats" id="batchStats"></div>
+      <button class="export-btn" id="exportCsvBtn">CSV로 내보내기</button>
+    </div>
+    <table class="batch-table" id="batchTable">
+      <thead>
+        <tr>
+          <th style="width:36px;">#</th>
+          <th>미리보기</th>
+          <th style="width:150px;">위반 카테고리</th>
+          <th style="width:70px;">위반구간</th>
+          <th style="width:220px;">제재수위 제안</th>
+          <th style="width:60px;"></th>
+        </tr>
+      </thead>
+      <tbody id="batchTbody"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+</div>
+
+<script>
+/* =========================================================
+   1) 클린기준 / 제재기준 규칙엔진 (rules.py 를 JS로 이식)
+   ========================================================= */
+const CATEGORIES = {
+  abuse: { label_ko:"욕설/폭력성", label_ja:"暴言・暴力性", color:"#e11d48",
+    sanction_rule:{"1차":"경고","2차":"콘텐츠 정지 (실시간: 방송정지 / 비실시간: 콘텐츠 블라인드)"} },
+  sexual: { label_ko:"음란물/성적 발언", label_ja:"わいせつ・性的発言", color:"#be123c",
+    sanction_rule:{"1차":"콘텐츠 정지 (실시간: 방송정지 / 비실시간: 콘텐츠 블라인드)","2차":"계정 정지"} },
+  harmful_share: { label_ko:"유해 콘텐츠 공유", label_ja:"有害コンテンツ共有", color:"#c2410c",
+    sanction_rule:{"1차":"경고","2차":"콘텐츠 정지 (실시간: 방송정지 / 비실시간: 콘텐츠 블라인드)"} },
+  illegal: { label_ko:"위법 행위", label_ja:"違法行為", color:"#7c2d12",
+    sanction_rule:{"1차":"경고","2차":"콘텐츠 정지 (실시간: 방송정지 / 비실시간: 콘텐츠 블라인드)"} },
+  minor_harm: { label_ko:"청소년 유해 콘텐츠", label_ja:"青少年有害コンテンツ", color:"#a21caf",
+    sanction_rule:{"1차":"콘텐츠 정지 (실시간: 방송정지 / 비실시간: 콘텐츠 블라인드)","2차":"계정 정지"} },
+  disruption: { label_ko:"서비스 운영방해", label_ja:"サービス運営妨害", color:"#4338ca",
+    sanction_rule:{"1차":"경고","2차":"경고","3차":"콘텐츠 정지 (실시간: 방송정지 / 비실시간: 콘텐츠 블라인드)"} },
+};
+
+const KEYWORDS = {
+  ko: {
+    abuse: ["씨발","개새끼","죽여버린다","패버린다","미친놈","미친년","닥쳐","꺼져"],
+    sexual: ["가슴","벗어봐","자위","19금","노출방","몸매 인증","성관계","신음","헐떡","가쁜 숨소리","숨소리 묘사","야동","폰섹"],
+    harmful_share: ["도박사이트","토토","불법사이트","먹튀","마약 구매","대포통장"],
+    illegal: ["보이스피싱","대출사기","다단계","성매매","마약","불법촬영"],
+    minor_harm: ["가출","만남 구함","조건만남","미성년자","청소년 술","청소년 담배"],
+    disruption: ["신고 남발","봇 프로그램","매크로","타 서비스 홍보","링크 눌러","광고 문의",
+      "직접 입금","계좌로 입금","무통장 입금","수수료 안 빠지는","수수료 안 나가게","사비로 보내",
+      "비번 따로","비밀번호 따로","팬방 비번","1:1 보이스톡","개인 연락처","따로 연락 주시면","현금으로 결제"],
+  },
+  ja: {
+    abuse: ["死ね","殺すぞ","馬鹿野郎","黙れ","うざい","消えろ"],
+    sexual: ["脱いで","胸を見せて","自慰","アダルト","性行為","喘ぎ声","息遣い"],
+    harmful_share: ["賭博サイト","違法サイト","闇バイト","薬物購入"],
+    illegal: ["振り込め詐欺","違法融資","マルチ商法","売春","薬物","違法撮影"],
+    minor_harm: ["家出","出会い希望","援助交際","未成年","飲酒","喫煙"],
+    disruption: ["通報しまくる","botプログラム","マクロ","他サービス宣伝","リンクを押して",
+      "口座に直接振り込み","手数料がかからない","個別に連絡","個人的に連絡","現金で決済"],
+  },
+};
+
+const SEVERITY_ORDER = ["minor_harm","sexual","illegal","harmful_share","abuse","disruption"];
+
+// 제재 수위 액션 문구 번역 (CATEGORIES.sanction_rule 은 한국어 원문 기준으로 저장되어 있음)
+const ACTION_LABELS_JA = {
+  "경고": "警告",
+  "콘텐츠 정지 (실시간: 방송정지 / 비실시간: 콘텐츠 블라인드)": "コンテンツ停止(リアルタイム: 放送停止 / 非リアルタイム: コンテンツブラインド)",
+  "계정 정지": "アカウント停止",
+};
+function localizeAction(action, lang) {
+  if (!action) return action;
+  if (lang === "ja") return ACTION_LABELS_JA[action] || action;
+  return action;
+}
+function localizeStage(stage, lang) {
+  if (!stage) return stage;
+  return lang === "ja" ? stage.replace("차", "次") : stage;
+}
+
+function splitSentences(text) {
+  return text.split(/(?<=[.!?。！？])\s+|\n+/).map(s=>s.trim()).filter(Boolean);
+}
+
+function analyzeText(segments, lang) {
+  lang = KEYWORDS[lang] ? lang : "ko";
+  const kwMap = KEYWORDS[lang];
+  const categoryCounter = {}; Object.keys(CATEGORIES).forEach(c=>categoryCounter[c]=0);
+  const highlighted = []; const flagged = [];
+
+  segments.forEach(seg => {
+    const text = seg.text;
+    let spans = [];
+    let matchedCats = [];
+    Object.entries(kwMap).forEach(([cat, words]) => {
+      words.forEach(w => {
+        let idx = text.indexOf(w);
+        while (idx !== -1) {
+          spans.push([idx, idx + w.length, cat]);
+          categoryCounter[cat]++;
+          if (!matchedCats.includes(cat)) matchedCats.push(cat);
+          idx = text.indexOf(w, idx + w.length);
+        }
+      });
+    });
+    spans.sort((a,b)=>a[0]-b[0]);
+    let rendered = []; let cursor = 0;
+    spans.forEach(([s,e,cat]) => {
+      if (s < cursor) return;
+      rendered.push({text: text.slice(cursor,s), flag:null});
+      rendered.push({text: text.slice(s,e), flag:cat});
+      cursor = e;
+    });
+    rendered.push({text: text.slice(cursor), flag:null});
+
+    const segOut = { start: seg.start||0, end: seg.end||0, text, rendered, categories: matchedCats, risk: matchedCats.length>0 };
+    highlighted.push(segOut);
+    if (matchedCats.length) flagged.push(segOut);
+  });
+
+  const triggered = SEVERITY_ORDER.filter(c => categoryCounter[c] > 0);
+  const topCategory = triggered.length ? triggered[0] : null;
+
+  return { segments: highlighted, flaggedSegments: flagged, categoryCounts: categoryCounter, topCategory };
+}
+
+function suggestSanction(topCategory, stage) {
+  if (!topCategory) return { category:null, stage:null, action: null };
+  const cat = CATEGORIES[topCategory];
+  let action = cat.sanction_rule[stage];
+  if (!action) {
+    const keys = Object.keys(cat.sanction_rule);
+    action = cat.sanction_rule[keys[keys.length-1]];
+  }
+  return { category: topCategory, categoryLabelKo: cat.label_ko, stage, action };
+}
+
+/* =========================================================
+   2) 데모 STT 시나리오 (demo_stt.py 를 JS로 이식)
+   ========================================================= */
+const DEMO_SCENARIOS = {
+  ko: [
+    [ {start:0.0,end:4.2,text:"안녕하세요 여러분 오늘 방송 시작하겠습니다."},
+      {start:4.2,end:9.5,text:"오늘 하루도 다들 고생 많으셨어요."},
+      {start:9.5,end:15.0,text:"야 너 진짜 미친놈이네 닥쳐 좀."},
+      {start:15.0,end:21.3,text:"죄송해요 제가 감정이 격해졌네요."},
+      {start:21.3,end:28.0,text:"그나저나 요즘 힘든 분들 많으시죠 저도 그래요."} ],
+    [ {start:0.0,end:5.0,text:"다들 안녕 오랜만에 방송하네."},
+      {start:5.0,end:11.2,text:"저기요 혹시 조건만남 하실분 디엠 주세요."},
+      {start:11.2,end:17.0,text:"농담이고요 오늘 신청곡 받을게요."},
+      {start:17.0,end:24.0,text:"요즘 토토 사이트 괜찮은거 있으면 링크 좀 공유해주세요."},
+      {start:24.0,end:30.0,text:"그럼 다음곡 갈게요."} ],
+    [ {start:0.0,end:6.0,text:"오늘도 좋은 하루 보내고 계신가요."},
+      {start:6.0,end:12.0,text:"저희 방송 규칙 안내드릴게요 즐거운 소통 부탁드려요."},
+      {start:12.0,end:18.0,text:"신청곡 리스트 확인하고 있습니다 잠시만요."},
+      {start:18.0,end:24.0,text:"네 다음 곡 들려드릴게요 감사합니다."} ],
+  ],
+  ja: [
+    [ {start:0.0,end:4.0,text:"皆さんこんにちは 今日の放送を始めます。"},
+      {start:4.0,end:9.0,text:"今日も一日お疲れ様でした。"},
+      {start:9.0,end:14.5,text:"お前ほんとに馬鹿野郎だな 黙れよ。"},
+      {start:14.5,end:20.0,text:"すみません 感情的になってしまいました。"},
+      {start:20.0,end:26.0,text:"それでは次のリクエスト曲にいきましょう。"} ],
+    [ {start:0.0,end:5.0,text:"みなさん久しぶりです。"},
+      {start:5.0,end:11.0,text:"違法サイトのリンクを共有してくれる人いますか。"},
+      {start:11.0,end:17.0,text:"冗談です 今日のリクエスト曲を受け付けます。"},
+      {start:17.0,end:23.0,text:"それではまた次回お会いしましょう。"} ],
+  ],
+};
+
+function simpleHash(str) {
+  let h = 0;
+  for (let i=0;i<str.length;i++){ h = (h*31 + str.charCodeAt(i)) >>> 0; }
+  return h;
+}
+function pickDemo(fileNameKey, lang) {
+  const arr = DEMO_SCENARIOS[lang] || DEMO_SCENARIOS.ko;
+  const idx = simpleHash(fileNameKey) % arr.length;
+  return arr[idx];
+}
+
+/* =========================================================
+   3) i18n
+   ========================================================= */
+const I18N = {
+  ko: { title:"AI 콘텐츠 모니터링 판독 대시보드 · 프로토타입", tabSingle:"단건 분석", tabBatch:"배치 분석 (여러 건)",
+    uploadTitle:"신고 콘텐츠 업로드", dropMain:"음성 파일을 드래그하거나 클릭해서 선택", dropSub:"mp3 / wav · 신고건 전후 3분 클립 권장",
+    divider:"또는 텍스트로 로직 테스트", stageLabel:"최근 7일 내 동일 계정 동일유형 위반 이력 (사내 시스템 조회값)",
+    stageOpts:["없음 (1차 위반)","1회 있음 (2차 위반)","2회 이상 있음 (3차 위반)"], analyzeBtn:"텍스트로 분석하기",
+    hint:"이 페이지는 100% 브라우저(자바스크립트)에서 동작하며 별도 서버 설치가 필요 없습니다. 다만 이 환경에는 STT·LLM API가 연결되어 있지 않아, 음성 업로드 시 녹취록은 데모 시나리오로 대체되고 위반탐지는 예시 키워드 기반 규칙엔진으로 동작합니다. 텍스트 입력 분석(단건/배치)은 실제 규칙엔진이 그대로 동작합니다.",
+    resultTitle:"판독 결과", empty:"파일을 업로드하거나 텍스트를 분석하면 여기에 결과가 표시됩니다.", loading:"분석 중입니다...",
+    demoBanner:"⚠ 데모 모드: 이 환경엔 STT API가 연동되어 있지 않아 (사내 보안정책상 외부 API 서버 접속이 차단되어 있음), 아래 녹취록은 실제 업로드 파일이 아닌 데모 시나리오입니다. 오디오 길이(duration)만 브라우저에서 실제 파일로부터 추출한 값입니다.",
+    summaryTitle:"AI 요약", sanctionTitle:"제재 수위 제안", noViolation:"제재 불요 (위반 미탐지)", transcriptTitle:"녹취록 (위반 의심 구간 하이라이트)",
+    filename:"파일명", duration:"길이", flaggedCount:"위반의심 구간", stageBadge:"적용 차수",
+    batchInputTitle:"신고건 녹취 텍스트 여러 건 붙여넣기",
+    batchHint:"각 신고건 사이에 구분선 '---' 을(를) 단독 줄로 넣어 구분해주세요. 실제 신고건 처리 이력이 있는 텍스트를 넣으면, 규칙엔진의 판단과 실제 처리결과를 비교해 정확도를 검증할 수 있습니다.",
+    batchStageLabel:"기본 위반 차수 (전체 적용, 필요시 표에서 개별 확인)", analyzeBatchBtn:"전체 분석 실행",
+    batchResultTitle:"배치 판독 결과", colPreview:"미리보기", colCategory:"위반 카테고리", colCount:"위반구간", colSanction:"제재수위 제안",
+    exportCsv:"CSV로 내보내기", totalCases:"총 건수", flaggedCases:"위반의심 건수", detailToggle:"상세보기",
+  },
+  ja: { title:"AIコンテンツモニタリング判読ダッシュボード・プロトタイプ", tabSingle:"単件分析", tabBatch:"バッチ分析(複数件)",
+    uploadTitle:"通報コンテンツのアップロード", dropMain:"音声ファイルをドラッグするかクリックして選択", dropSub:"mp3 / wav ・通報時点前後3分のクリップ推奨",
+    divider:"またはテキストでロジックをテスト", stageLabel:"直近7日以内の同一アカウント同種違反履歴(社内システム参照値)",
+    stageOpts:["なし(1次違反)","1回あり(2次違反)","2回以上あり(3次違反)"], analyzeBtn:"テキストで分析する",
+    hint:"このページは100%ブラウザ(JavaScript)で動作し、サーバー設置は不要です。ただしこの環境にはSTT・LLM APIが接続されていないため、音声アップロード時の書き起こしはデモシナリオに置き換わり、違反検出はサンプルキーワードベースのルールエンジンで動作します。テキスト入力分析(単件/バッチ)は実際のルールエンジンがそのまま動作します。",
+    resultTitle:"判読結果", empty:"ファイルをアップロードするか、テキストを分析するとここに結果が表示されます。", loading:"分析中です...",
+    demoBanner:"⚠ デモモード: この環境にはSTT APIが接続されていないため(社内セキュリティポリシー上、外部APIサーバーへの接続が遮断されています)、以下の書き起こしは実際のアップロードファイルではなくデモシナリオです。音声の長さ(duration)のみブラウザが実ファイルから抽出した値です。",
+    summaryTitle:"AI要約", sanctionTitle:"制裁レベル提案", noViolation:"制裁不要(違反未検出)", transcriptTitle:"書き起こし(違反疑い区間ハイライト)",
+    filename:"ファイル名", duration:"長さ", flaggedCount:"違反疑い区間", stageBadge:"適用段階",
+    batchInputTitle:"通報コンテンツの書き起こしテキストを複数件貼り付け",
+    batchHint:"各通報件の間に区切り線「---」を単独行で入れてください。実際の処理履歴があるテキストを入れると、ルールエンジンの判定と実際の処理結果を比較して精度を検証できます。",
+    batchStageLabel:"デフォルト違反段階(全体適用、表で個別確認可能)", analyzeBatchBtn:"一括分析を実行",
+    batchResultTitle:"バッチ判読結果", colPreview:"プレビュー", colCategory:"違反カテゴリ", colCount:"違反区間", colSanction:"制裁レベル提案",
+    exportCsv:"CSVエクスポート", totalCases:"総件数", flaggedCases:"違反疑い件数", detailToggle:"詳細を見る",
+  },
+};
+
+let currentLang = "ko";
+const el = id => document.getElementById(id);
+
+function applyI18n() {
+  const t = I18N[currentLang];
+  document.documentElement.lang = currentLang;
+  el("titleText").textContent = t.title;
+  el("tab-single-btn").textContent = t.tabSingle;
+  el("tab-batch-btn").textContent = t.tabBatch;
+  el("uploadTitle").textContent = t.uploadTitle;
+  el("dropMain").textContent = t.dropMain;
+  el("dropSub").textContent = t.dropSub;
+  el("dividerText").textContent = t.divider;
+  el("stageLabel").textContent = t.stageLabel;
+  const stageSel = el("offenseStage");
+  const stageValues = ["1차","2차","3차"];
+  stageSel.innerHTML = "";
+  t.stageOpts.forEach((label,i)=>{ const o=document.createElement("option"); o.value=stageValues[i]; o.textContent=label; stageSel.appendChild(o); });
+  el("analyzeTextBtn").textContent = t.analyzeBtn;
+  el("hintBox").textContent = t.hint;
+  el("resultTitle").textContent = t.resultTitle;
+  el("emptyState").textContent = t.empty;
+  el("batchInputTitle").textContent = t.batchInputTitle;
+  el("batchHint").textContent = t.batchHint;
+  el("batchStageLabel").textContent = t.batchStageLabel;
+  el("analyzeBatchBtn").textContent = t.analyzeBatchBtn;
+  el("batchResultTitle").textContent = t.batchResultTitle;
+  el("exportCsvBtn").textContent = t.exportCsv;
+  el("btn-ko").classList.toggle("active", currentLang==="ko");
+  el("btn-ja").classList.toggle("active", currentLang==="ja");
+}
+el("btn-ko").addEventListener("click", ()=>{ currentLang="ko"; applyI18n(); });
+el("btn-ja").addEventListener("click", ()=>{ currentLang="ja"; applyI18n(); });
+
+/* tabs */
+el("tab-single-btn").addEventListener("click", ()=>{
+  el("tab-single-btn").classList.add("active"); el("tab-batch-btn").classList.remove("active");
+  el("tab-single").classList.add("active"); el("tab-batch").classList.remove("active");
+});
+el("tab-batch-btn").addEventListener("click", ()=>{
+  el("tab-batch-btn").classList.add("active"); el("tab-single-btn").classList.remove("active");
+  el("tab-batch").classList.add("active"); el("tab-single").classList.remove("active");
+});
+
+/* =========================================================
+   4) 단건 분석: 드래그앤드롭 (클라이언트 사이드 duration 추출) + 텍스트
+   ========================================================= */
+const dropzone = el("dropzone");
+const fileInput = el("fileInput");
+dropzone.addEventListener("click", ()=>fileInput.click());
+["dragenter","dragover"].forEach(evt=>dropzone.addEventListener(evt,e=>{e.preventDefault();dropzone.classList.add("dragover");}));
+["dragleave","drop"].forEach(evt=>dropzone.addEventListener(evt,e=>{e.preventDefault();dropzone.classList.remove("dragover");}));
+dropzone.addEventListener("drop", e=>{ const f=e.dataTransfer.files[0]; if(f) handleAudioFile(f); });
+fileInput.addEventListener("change", e=>{ const f=e.target.files[0]; if(f) handleAudioFile(f); });
+el("analyzeTextBtn").addEventListener("click", ()=>{
+  const text = el("textInput").value.trim();
+  if (!text) return;
+  const sentences = splitSentences(text);
+  const segments = sentences.map((s,i)=>({start:i*4.0, end:i*4.0+4.0, text:s}));
+  const result = analyzeText(segments, currentLang);
+  const sanction = suggestSanction(result.topCategory, el("offenseStage").value);
+  const summary = buildSummary(result, currentLang);
+  renderSingleResult({ mode:"TEXT_INPUT", segments: result.segments, flaggedCount: result.flaggedSegments.length,
+    categoryCounts: result.categoryCounts, summary, sanction });
+});
+
+function handleAudioFile(file) {
+  showLoading();
+  const url = URL.createObjectURL(file);
+  const audio = new Audio();
+  audio.preload = "metadata";
+  audio.src = url;
+  const finish = (duration) => {
+    const segments = pickDemo(file.name + "_" + file.size, currentLang);
+    const result = analyzeText(segments, currentLang);
+    const sanction = suggestSanction(result.topCategory, el("offenseStage").value);
+    const summary = buildSummary(result, currentLang);
+    renderSingleResult({ mode:"DEMO_STT", filename:file.name, durationSec: duration, segments: result.segments,
+      flaggedCount: result.flaggedSegments.length, categoryCounts: result.categoryCounts, summary, sanction });
+    URL.revokeObjectURL(url);
+  };
+  audio.onloadedmetadata = () => finish(audio.duration);
+  audio.onerror = () => finish(null);
+  setTimeout(()=>{ if (audio.readyState === 0) finish(null); }, 2500);
+}
+
+function buildSummary(result, lang) {
+  const total = result.segments.length;
+  const flagged = result.flaggedSegments.length;
+  if (flagged === 0) {
+    return lang==="ko" ? "전체 발화 중 클린기준 위반으로 의심되는 표현이 발견되지 않았습니다."
+                       : "全体の発言の中でクリーン基準に違反する疑いのある表現は見つかりませんでした。";
+  }
+  const catLabels = Object.entries(result.categoryCounts).filter(([k,v])=>v>0)
+    .map(([k])=> lang==="ko" ? CATEGORIES[k].label_ko : CATEGORIES[k].label_ja);
+  let lines = [];
+  if (lang==="ko") {
+    lines.push(`전체 ${total}개 발화 구간 중 ${flagged}개 구간에서 위반 의심 표현이 발견되었습니다.`);
+    lines.push(`탐지된 위반 카테고리: ${catLabels.join(", ")}`);
+    lines.push("핵심 발췌:");
+    result.flaggedSegments.slice(0,5).forEach(seg => lines.push(` [${fmtTs(seg.start)}] ${seg.text}`));
+  } else {
+    lines.push(`全${total}区間中${flagged}区間で違反の疑いのある表現が検出されました。`);
+    lines.push(`検出カテゴリ: ${catLabels.join(", ")}`);
+    lines.push("主要発言:");
+    result.flaggedSegments.slice(0,5).forEach(seg => lines.push(` [${fmtTs(seg.start)}] ${seg.text}`));
+  }
+  return lines.join("\n");
+}
+
+function fmtTs(sec) {
+  sec = Math.round(sec||0);
+  const m = String(Math.floor(sec/60)).padStart(2,"0");
+  const s = String(sec%60).padStart(2,"0");
+  return `${m}:${s}`;
+}
+function sanctionColor(action) {
+  if (!action) return "#334155";
+  if (action.includes("계정")||action.includes("アカウント")) return "#ef4444";
+  if (action.includes("정지")||action.includes("停止")||action.includes("ブラインド")) return "#f97316";
+  return "#eab308";
+}
+function escapeHtml(str) { const d=document.createElement("div"); d.textContent=str; return d.innerHTML; }
+
+function showLoading() {
+  const t = I18N[currentLang];
+  el("emptyState").style.display = "none";
+  const content = el("resultsContent");
+  content.style.display = "block";
+  content.innerHTML = `<div class="loading"><div class="spinner"></div>${t.loading}</div>`;
+}
+
+function renderSingleResult(data) {
+  const t = I18N[currentLang];
+  const content = el("resultsContent");
+  el("emptyState").style.display = "none";
+  content.style.display = "block";
+  let html = "";
+  if (data.mode === "DEMO_STT") html += `<div class="banner">${t.demoBanner}</div>`;
+
+  html += `<div class="meta-row">`;
+  if (data.filename) html += `<span class="chip">${t.filename}: ${escapeHtml(data.filename)}</span>`;
+  if (data.durationSec) html += `<span class="chip">${t.duration}: ${fmtTs(data.durationSec)}</span>`;
+  html += `<span class="chip">${t.flaggedCount}: ${data.flaggedCount}</span>`;
+  html += `<span class="chip">${t.stageBadge}: ${localizeStage(el("offenseStage").value, currentLang)}</span>`;
+  html += `</div>`;
+
+  html += `<div class="grid-2">`;
+  html += `<div class="card"><h3>${t.summaryTitle}</h3><div class="summary-text">${escapeHtml(data.summary)}</div></div>`;
+
+  const sanction = data.sanction;
+  const localizedAction = sanction ? localizeAction(sanction.action, currentLang) : null;
+  const color = sanction && sanction.action ? sanctionColor(sanction.action) : "#334155";
+  html += `<div class="card"><h3>${t.sanctionTitle}</h3>`;
+  if (sanction && sanction.category) {
+    const catLabel = currentLang==="ko" ? CATEGORIES[sanction.category].label_ko : CATEGORIES[sanction.category].label_ja;
+    html += `<div class="sanction-badge" style="background:${color}22;color:${color};border:1px solid ${color}55;">${localizedAction}</div>`;
+    html += `<div class="sanction-sub">${catLabel} · ${localizeStage(el("offenseStage").value, currentLang)}</div>`;
+  } else {
+    html += `<div class="sanction-badge" style="background:#33415522;color:#94a3b8;border:1px solid #33415555;">${t.noViolation}</div>`;
+  }
+  const activeCats = Object.entries(data.categoryCounts).filter(([k,v])=>v>0);
+  if (activeCats.length) {
+    html += `<div class="cat-counts">`;
+    activeCats.forEach(([cat,cnt])=>{
+      const meta = CATEGORIES[cat]; const label = currentLang==="ko"?meta.label_ko:meta.label_ja;
+      html += `<span class="cat-chip" style="background:${meta.color}">${label} ×${cnt}</span>`;
+    });
+    html += `</div>`;
+  }
+  html += `</div></div>`;
+
+  html += `<div class="legend">`;
+  Object.values(CATEGORIES).forEach(meta=>{
+    const label = currentLang==="ko"?meta.label_ko:meta.label_ja;
+    html += `<span><span class="dot" style="background:${meta.color}"></span>${label}</span>`;
+  });
+  html += `</div>`;
+
+  html += `<h3 style="margin:16px 0 8px;font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em;">${t.transcriptTitle}</h3>`;
+  html += `<div class="transcript">`;
+  data.segments.forEach(seg=>{
+    html += `<div class="seg ${seg.risk?"risk":""}"><div class="ts">${fmtTs(seg.start)}</div><div class="body">`;
+    seg.rendered.forEach(piece=>{
+      if (piece.flag) {
+        const meta = CATEGORIES[piece.flag]; const label = currentLang==="ko"?meta.label_ko:meta.label_ja;
+        html += `<span class="flag" style="border-bottom-color:${meta.color};background:${meta.color}22;color:${meta.color}" title="${label}">${escapeHtml(piece.text)}</span>`;
+      } else html += escapeHtml(piece.text);
+    });
+    if (seg.categories.length) {
+      html += `<div class="seg-tags">`;
+      seg.categories.forEach(c=>{ const meta=CATEGORIES[c]; const label=currentLang==="ko"?meta.label_ko:meta.label_ja;
+        html += `<span class="seg-tag" style="background:${meta.color}">${label}</span>`; });
+      html += `</div>`;
+    }
+    html += `</div></div>`;
+  });
+  html += `</div>`;
+  content.innerHTML = html;
+}
+
+/* =========================================================
+   5) 배치 분석
+   ========================================================= */
+let batchResults = [];
+
+el("analyzeBatchBtn").addEventListener("click", () => {
+  const raw = el("batchInput").value;
+  const cases = raw.split(/\n[ \t]*---[ \t]*\n/).map(c=>c.trim()).filter(Boolean);
+  if (!cases.length) return;
+  const stage = el("batchOffenseStage").value;
+
+  batchResults = cases.map((caseText, i) => {
+    const sentences = splitSentences(caseText);
+    const segments = sentences.map((s,idx)=>({start:idx*4.0, end:idx*4.0+4.0, text:s}));
+    const result = analyzeText(segments, currentLang);
+    const sanction = suggestSanction(result.topCategory, stage);
+    return { id: i+1, rawText: caseText, result, sanction };
+  });
+
+  renderBatchTable();
+});
+
+function renderBatchTable() {
+  const t = I18N[currentLang];
+  el("batchResultsPanel").style.display = "block";
+
+  const totalCases = batchResults.length;
+  const flaggedCases = batchResults.filter(r => r.result.flaggedSegments.length > 0).length;
+  el("batchStats").innerHTML = `
+    <span class="chip">${t.totalCases}: ${totalCases}</span>
+    <span class="chip">${t.flaggedCases}: ${flaggedCases}</span>`;
+
+  const tbody = el("batchTbody");
+  tbody.innerHTML = "";
+
+  batchResults.forEach(r => {
+    const tr = document.createElement("tr");
+    const preview = r.rawText.length > 60 ? r.rawText.slice(0,60) + "…" : r.rawText;
+    const catLabel = r.sanction.category ? (currentLang==="ko" ? CATEGORIES[r.sanction.category].label_ko : CATEGORIES[r.sanction.category].label_ja) : "-";
+    const catColor = r.sanction.category ? CATEGORIES[r.sanction.category].color : "#334155";
+    const sanctionText = localizeAction(r.sanction.action, currentLang) || t.noViolation;
+    const sanctionColorVal = r.sanction.action ? sanctionColor(r.sanction.action) : "#64748b";
+
+    tr.innerHTML = `
+      <td>${r.id}</td>
+      <td class="preview-text">${escapeHtml(preview)}</td>
+      <td><span class="badge-mini" style="background:${catColor}">${catLabel}</span></td>
+      <td>${r.result.flaggedSegments.length}</td>
+      <td style="color:${sanctionColorVal}; font-weight:600;">${sanctionText}</td>
+      <td><button class="row-toggle" data-id="${r.id}">${t.detailToggle}</button></td>
+    `;
+    tbody.appendChild(tr);
+
+    const detailTr = document.createElement("tr");
+    detailTr.className = "detail-row";
+    detailTr.style.display = "none";
+    detailTr.dataset.detailFor = r.id;
+    const detailTd = document.createElement("td");
+    detailTd.colSpan = 6;
+
+    let inner = `<div class="transcript" style="margin:6px 0;">`;
+    r.result.segments.forEach(seg=>{
+      inner += `<div class="seg ${seg.risk?"risk":""}"><div class="ts">${fmtTs(seg.start)}</div><div class="body">`;
+      seg.rendered.forEach(piece=>{
+        if (piece.flag) {
+          const meta = CATEGORIES[piece.flag]; const label = currentLang==="ko"?meta.label_ko:meta.label_ja;
+          inner += `<span class="flag" style="border-bottom-color:${meta.color};background:${meta.color}22;color:${meta.color}" title="${label}">${escapeHtml(piece.text)}</span>`;
+        } else inner += escapeHtml(piece.text);
+      });
+      inner += `</div></div>`;
+    });
+    inner += `</div>`;
+    detailTd.innerHTML = inner;
+    detailTr.appendChild(detailTd);
+    tbody.appendChild(detailTr);
+  });
+
+  tbody.querySelectorAll(".row-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const row = tbody.querySelector(`tr[data-detail-for="${id}"]`);
+      row.style.display = row.style.display === "none" ? "table-row" : "none";
+    });
+  });
+}
+
+el("exportCsvBtn").addEventListener("click", () => {
+  if (!batchResults.length) return;
+  const rows = currentLang === "ja"
+    ? [["番号","原文プレビュー","違反カテゴリ","違反区間数","制裁レベル提案"]]
+    : [["번호","원문 미리보기","위반카테고리","위반구간수","제재수위제안"]];
+  batchResults.forEach(r => {
+    const catLabel = r.sanction.category
+      ? (currentLang==="ja" ? CATEGORIES[r.sanction.category].label_ja : CATEGORIES[r.sanction.category].label_ko)
+      : "";
+    rows.push([r.id, r.rawText.replace(/\n/g," "), catLabel, r.result.flaggedSegments.length, localizeAction(r.sanction.action, currentLang) || ""]);
+  });
+  const csv = rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8;"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "moderation_batch_result.csv";
+  link.click();
+});
+
+applyI18n();
+</script>
+</body>
+</html>
